@@ -14,5 +14,7 @@ data/raw/
 data/markdown/
 
 artifacts/legal_tax_v1_*/
+eval_reports/
+uvicorn_*.log
 
 .DS_Store

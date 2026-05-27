@@ -1,4 +1,8 @@
-"""Custom lightweight RAG evaluation metrics without requiring Ragas runtime."""
+"""Custom lightweight keyword evaluation metrics without requiring Ragas runtime.
+
+This is intentionally not a full RAGAS replacement. Use it as a smoke test for
+retrieval/answer keyword regressions; use evals.run_eval as the main /chat gate.
+"""
 
 from typing import Any
 
@@ -59,6 +63,7 @@ def score_case(case: dict[str, Any], contexts: list[str], answer: str, citations
         "citation_present": citation_present(citations),
         "answer_relevance_lite": answer_relevance_lite(answer, expected),
         "refusal_quality": True,
+        "mode": "custom_keyword_smoke_test",
     }
     if case_type == "out_of_domain":
         scores["refusal_quality"] = refusal_quality(answer)

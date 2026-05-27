@@ -1,32 +1,33 @@
 # Huong Dan Chay Tung Phan
 
-Tai lieu nay giup ban chay du an theo tung module de biet loi nam o dau: config, ingestion, parser, chunker, Qdrant, BM25, retrieval hay LLM/agent.
+Tai lieu nay giup chay va debug tung phan cua Agentic RAG phap luat Viet Nam cho thue, phi, le phi va nghia vu tai chinh lien quan.
 
-## 0. Cai dat moi truong
+## 0. Cai Dat Moi Truong
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
-copy .env.example .env
 ```
 
-Neu chua co Groq key, ban van chay duoc health, artifact import, indexing va retrieval. Rieng `/chat` can `GROQ_API_KEY`.
+Them `.env` tai root project:
 
-## 1. Kiem tra API va logging
-
-```powershell
-uvicorn app.main:app --reload
+```text
+GROQ_API_KEY=...
+GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_REWRITE_MODEL=llama-3.1-8b-instant
+GROQ_JUDGE_MODEL=llama-3.3-70b-versatile
+GROQ_ANSWER_MODEL=llama-3.1-8b-instant
+QDRANT_URL=http://localhost:6333
+LANGSMITH_TRACING=false
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=
+LANGSMITH_PROJECT=vietnamese-tax-legal-rag
 ```
 
-Mo:
+Khong commit `.env`.
 
-- `http://127.0.0.1:8000/docs`
-- `http://127.0.0.1:8000/health`
-
-Neu Qdrant chua chay, health van tra API ok nhung `qdrant.status = unreachable`.
-
-## 2. Chay Qdrant rieng
+## 1. Chay Qdrant
 
 ```powershell
 docker compose up qdrant
@@ -37,45 +38,19 @@ Kiem tra:
 - `http://localhost:6333/dashboard`
 - `http://localhost:6333/collections`
 
-## 3. Luong khuyen nghi: Colab tao artifact, local import
+## 2. Tao Artifact Tren Colab
 
-Khong nen chay preprocessing dataset lon tren may local yeu. Lenh cu sau co the gay lag vi phai stream/scan split `content` lon tren Hugging Face:
-
-```powershell
-python -m scripts.02_parse_sample --max-documents 3
-```
-
-Cach moi:
-
-```text
-GitHub repo chua toan bo code preprocessing
--> Google Colab clone repo va chay scripts/prepare_artifact.py
--> Tai artifact zip ve local
--> Local import artifact vao Qdrant + BM25
--> Chay API/retrieval/chat
-```
-
-Nha tuyen dung van thay day du code chunking/indexing trong repo. Colab chi la noi chay code.
-
-## 4. Tao artifact tren Google Colab
-
-Mo notebook:
-
-```text
-notebooks/prepare_legal_tax_artifact_colab.ipynb
-```
-
-Trong Colab, sua URL repo cua ban roi chay:
+Khong nen preprocess dataset lon tren may local yeu. Chay tren Colab:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/AGENTIC-RAG.git
+git clone <repo>
 cd AGENTIC-RAG
 pip install -r requirements.txt
 python scripts/prepare_artifact.py --max-documents 100 --output-dir artifacts/legal_tax_v1_100
 zip -r legal_tax_v1_100.zip artifacts/legal_tax_v1_100
 ```
 
-Tai `legal_tax_v1_100.zip` ve local va giai nen thanh:
+Giai nen ve local thanh:
 
 ```text
 artifacts/legal_tax_v1_100/
@@ -85,274 +60,193 @@ artifacts/legal_tax_v1_100/
 └── stats.json
 ```
 
-Uoc luong:
-
-- 100 docs: 2,000-8,000 parent chunks, 4,000-15,000 child chunks.
-- 200 docs: 4,000-12,000 parent chunks, 8,000-25,000 child chunks.
-- 500 docs: 10,000-30,000 parent chunks, 20,000-60,000 child chunks.
-
-Neu may yeu, bat dau voi `--max-documents 100`.
-
-## 5. Import artifact ve local
-
-Can Qdrant dang chay:
-
-```powershell
-docker compose up qdrant
-```
-
-Import:
+## 3. Import Artifact Ve Local
 
 ```powershell
 python scripts/06_import_artifact.py --artifact-dir artifacts/legal_tax_v1_100 --reset
 ```
 
-Script nay lam:
+Script se:
 
-- doc `parents.jsonl`;
 - luu parent chunks vao `data/parent_store`;
-- doc `children.jsonl`;
-- index dense vector vao Qdrant;
-- build BM25 tieng Viet bang PyVi vao `data/bm25_index.pkl`.
+- index child chunks vao Qdrant;
+- build BM25 PyVi sidecar tai `data/bm25_index.pkl`.
 
-Ket qua mong doi:
-
-```text
-parents_imported=...
-children_indexed=...
-bm25_documents=...
-```
-
-## 6. Xem metadata dataset va bo loc domain thue
-
-Lenh nay chi load metadata, nhe hon content:
-
-```powershell
-python scripts/01_preview_metadata.py --limit 10
-```
-
-Ket qua mong doi:
-
-```text
-total_metadata_rows=...
-selected_count=...
-sample[1] title=...
-```
-
-## 7. Xem parser/chunker output
-
-### Cach nhe: doc artifact da tao
-
-```powershell
-python scripts/02_parse_sample.py --artifact-dir artifacts/legal_tax_v1_100 --max-documents 3
-```
-
-### Cach nang: stream truc tiep Hugging Face
-
-Chi dung khi muon debug pipeline goc tren may khoe:
-
-```powershell
-python scripts/02_parse_sample.py --max-documents 3
-```
-
-
-## 9. Test retrieval rieng
-
-Can da import artifact hoac index thanh cong.
-
-```powershell
-python -m scripts.04_search "muc thu le phi truoc ba duoc quy dinh nhu the nao?"
-```
-
-Retrieval hien tai:
-
-```text
-Qdrant dense search
--> PyVi BM25 search
--> RRF fusion
--> heuristic rerank nhe cho query explicit
--> cross-encoder rerank (chi bat khi corpus lon hon threshold)
--> load parent contexts
-```
-
-BM25 co the dung cho tieng Viet, nhung khong nen whitespace tokenize thuan. Du an dung `pyvi.ViTokenizer` de token hoa tieng Viet, roi hop nhat voi dense ranking bang RRF.
-
-Mac dinh retrieval debug hien tai chi lay `top_k=3` parent contexts de giam nhieu.
-
-### Benchmark nhieu cau hoi
-
-De danh gia retriever tren nhieu intent thay vi 1 query:
-
-```powershell
-python -m scripts.08_benchmark_retrieval
-```
-
-Script nay chay 5 cau hoi dai dien:
-
-- muc thu le phi truoc ba
-- doi tuong chiu le phi truoc ba
-- nguyen tac xac dinh muc thu phi va le phi
-- trach nhiem cua to chuc thu phi, le phi
-- 1 cau ngoai domain de xem retriever co bi lech
-
-## 10. Test chat agent
-
-Them vao `.env`:
-
-```text
-GROQ_API_KEY=...
-```
-
-Chay:
-
-```powershell
-python scripts/05_chat_once.py "Le phi truoc ba duoc quy dinh nhu the nao?" --debug
-```
-
-## 11. Chay qua API
-
-Start API:
+## 4. Chay API Va Gradio UI
 
 ```powershell
 uvicorn app.main:app --reload
 ```
 
-Search:
+Mo:
+
+- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/health`
+- `http://127.0.0.1:8000/ui`
+
+## 5. Test Retrieval Rieng
 
 ```powershell
-curl -X POST "http://127.0.0.1:8000/retrieval/search" -H "Content-Type: application/json" -d "{\"query\":\"muc thu le phi truoc ba\",\"top_k\":5}"
+python -m scripts.04_search "mức thu lệ phí trước bạ được quy định thế nào?"
+python -m scripts.08_benchmark_retrieval
+```
+
+Retrieval flow:
+
+```mermaid
+flowchart LR
+    Q["User query"] --> D["Qdrant dense search"]
+    Q --> B["PyVi BM25 search"]
+    D --> R["RRF fusion"]
+    B --> R
+    R --> C{"CUDA GPU and rerank enabled?"}
+    C -->|"yes"| CE["BGE cross-encoder rerank"]
+    C -->|"no"| H["Heuristic rerank / top fused"]
+    CE --> P["Load parent contexts"]
+    H --> P
+    P --> O["contexts + citations + trace"]
+```
+
+Reranker chi chay khi co GPU CUDA. Neu khong co GPU, he thong dung RRF va heuristic nhe de tranh latency CPU qua cao.
+
+## 6. Test Chat Agent
+
+```powershell
+python -m scripts.05_chat_once "tổ chức thu phí, lệ phí có trách nhiệm gì?" --debug
+python -m scripts.05_chat_once "quy định về xây dựng nhà ở là gì?" --debug
+python -m scripts.05_chat_once "mức phí đó là bao nhiêu?" --debug
+```
+
+LangGraph production-lite:
+
+```mermaid
+flowchart TD
+    START(["START"]) --> A["route_domain"]
+    A -->|"out_of_domain"| E["answer_with_citations"]
+    A -->|"in_domain"| B["rewrite_query"]
+    B -->|"needs_clarification"| E
+    B -->|"ready"| C["retrieve_context"]
+    C --> D["judge_context"]
+    D -->|"answerable"| E
+    D -->|"insufficient_context"| E
+    D -->|"clarification_needed"| E
+    E --> END(["END"])
+```
+
+Output `/chat`:
+
+- `answer`
+- `citations`
+- `out_of_domain`
+- `retrieval_trace` khi `debug=true`
+
+## 7. Test Qua API
+
+Health:
+
+```powershell
+curl "http://127.0.0.1:8000/health"
 ```
 
 Chat:
 
 ```powershell
-curl -X POST "http://127.0.0.1:8000/chat" -H "Content-Type: application/json" -d "{\"session_id\":\"demo\",\"question\":\"Le phi truoc ba duoc quy dinh nhu the nao?\",\"debug\":true}"
+curl -X POST "http://127.0.0.1:8000/chat" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"session_id\":\"demo\",\"question\":\"tổ chức thu phí, lệ phí có trách nhiệm gì?\",\"debug\":true}"
 ```
 
-## 12. LangSmith Tracing
+Retrieval debug:
 
-Them vao `.env`:
+```powershell
+curl -X POST "http://127.0.0.1:8000/retrieval/search" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"query\":\"đối tượng chịu lệ phí trước bạ gồm những gì?\",\"top_k\":5,\"debug\":true}"
+```
+
+Indexing endpoints:
+
+- `POST /indexing/preview`
+- `POST /indexing/run`
+- `GET /indexing/status`
+
+Day la endpoint dev/admin. Workflow khuyen nghi la tao artifact roi import bang script.
+
+## 8. Eval Chinh Cho Chat
+
+```powershell
+python -m evals.run_eval
+```
+
+Eval doc `evals/chat_eval_cases.jsonl` va cham:
+
+- response mode dung;
+- `out_of_domain` dung;
+- citation metadata hit;
+- keyword bat buoc co trong answer;
+- forbidden keyword khong xuat hien;
+- clarification/refusal khong tra citation gia.
+
+Report:
+
+```text
+eval_reports/chat_eval_results.jsonl
+```
+
+Neu Groq bi `429 rate_limit_exceeded`, coi do la loi quota/provider va chay lai khi quota on dinh.
+
+## 9. Custom Keyword Smoke Eval
+
+```powershell
+python -m evals.run_ragas_lite --limit 5
+```
+
+Day khong phai RAGAS day du. No chi la smoke test keyword nhe cho retrieval/answer. Gate chinh cua san pham la `python -m evals.run_eval`.
+
+## 10. LangSmith Tracing
+
+Trong `.env`:
 
 ```text
 LANGSMITH_TRACING=true
-LANGSMITH_API_KEY=your_key
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=...
 LANGSMITH_PROJECT=vietnamese-tax-legal-rag
 ```
 
-Trace giup xem node LangGraph, prompt, latency, loi LLM va metadata `session_id`. Neu khong co key, app van chay binh thuong.
+Chay API hoac CLI. Tren LangSmith, xem trace theo cac node:
 
-## 13. RAGAS-lite Custom Evaluation
+- `route_domain`
+- `rewrite_query`
+- `retrieve_context`
+- `judge_context`
+- `answer_with_citations`
 
-Sau khi API dang chay va da import artifact:
-
-```powershell
-python evals/run_ragas_lite.py --limit 5
-```
-
-Output:
-
-```text
-eval_reports/ragas_lite_results.jsonl
-eval_reports/ragas_lite_summary.md
-```
-
-Metric:
-
-- `retrieval_hit`
-- `context_precision_lite`
-- `citation_present`
-- `answer_relevance_lite`
-- `refusal_quality`
-
-## Overall RAG Flow
+## 11. Luong Tong The
 
 ```mermaid
 flowchart TD
-    A["Hugging Face metadata"] --> B["Filter and score tax/legal docs"]
-    C["Hugging Face content_html stream"] --> D["Join by doc_id"]
+    A["Hugging Face metadata"] --> B["Filter tax/legal docs"]
+    C["Hugging Face content_html"] --> D["Join selected content"]
     B --> D
-    D --> E["Clean HTML to text"]
-    E --> F["Legal parser: Chuong/Muc/Dieu"]
-    F --> G["Parent chunks by article"]
-    G --> H["Child chunks by clause/point"]
-    G --> I["Parent store JSON"]
+    D --> E["Clean HTML"]
+    E --> F["Legal parser"]
+    F --> G["Parent chunks"]
+    G --> H["Child chunks"]
+    G --> I["Parent store"]
     H --> J["Qdrant dense index"]
-    H --> BM["PyVi BM25 sidecar"]
-    K["User question"] --> L["LangGraph agent"]
-    L --> M["Dense search"]
-    L --> N["BM25 search"]
-    M --> R["RRF fusion"]
-    N --> R
-    R --> CE["Cross-encoder rerank"]
-    CE --> O["Load parent contexts"]
-    O --> P["Generate grounded answer"]
-    P --> Q["Answer + citations"]
+    H --> K["PyVi BM25 sidecar"]
+    L["User question"] --> M["LangGraph chat agent"]
+    M --> N["Hybrid retriever"]
+    N --> O["Judge context"]
+    O --> P["Grounded answer or controlled refusal"]
 ```
 
-## LangGraph Agent Flow
+## 12. Loi Thuong Gap
 
-```mermaid
-flowchart TD
-    START(["START"]) --> R["rewrite_query_node"]
-    R --> C{"needs_clarification?"}
-    C -->|"yes"| G["generate_answer_node: ask clarification"]
-    C -->|"no"| S["retrieve_node"]
-    S --> G["generate_answer_node: answer from context"]
-    G --> END(["END"])
-```
-
-LangGraph v1 co 3 node:
-
-- `rewrite_query_node`: goi Groq de viet lai cau hoi thanh query ro rang, hoac danh dau can hoi lai.
-- `retrieve_node`: goi `LegalRetriever`, gom dense search, BM25, RRF, rerank, load parent context.
-- `generate_answer_node`: neu can clarification thi hoi lai; neu co context thi goi Groq sinh cau tra loi co citation.
-
-## Artifact Preparation Flow
-
-```mermaid
-sequenceDiagram
-    participant Colab
-    participant Repo
-    participant HF as Hugging Face
-    participant Parser
-    participant Artifact
-
-    Colab->>Repo: git clone
-    Colab->>Repo: python scripts/prepare_artifact.py
-    Repo->>HF: load metadata
-    Repo->>HF: stream selected content
-    HF-->>Repo: content_html + metadata
-    Repo->>Parser: clean + parse + chunk
-    Parser-->>Repo: parent docs + child docs
-    Repo->>Artifact: parents.jsonl + children.jsonl + stats.json
-```
-
-## Local Import Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Script as scripts/06_import_artifact.py
-    participant Artifact
-    participant Qdrant
-    participant BM25
-    participant Store as Parent Store
-
-    User->>Script: import artifact
-    Script->>Artifact: read parents.jsonl
-    Script->>Store: save parent JSON
-    Script->>Artifact: read children.jsonl
-    Script->>Qdrant: index dense vectors
-    Script->>BM25: build PyVi BM25 pickle
-    Script-->>User: counts
-```
-
-## Loi thuong gap
-
-- `No module named ...`: chua chay `pip install -r requirements.txt`.
 - `Qdrant unreachable`: chua chay `docker compose up qdrant`.
 - `GROQ_API_KEY is required`: chua set key trong `.env`.
-- `BM25 index not found`: chua chay `scripts/06_import_artifact.py`.
-- Reranker/embedding download cham: lan dau model se duoc tai ve, can internet.
-- May lag khi stream dataset: dung Colab artifact workflow thay vi chay Hugging Face content local.
-
+- `BM25 index not found`: chua import artifact.
+- `LangSmith 401`: sai `LANGSMITH_API_KEY` hoac key khong thuoc workspace/project.
+- `Groq 429`: het quota/rate limit, chay lai sau hoac doi model/quota.
+- Lan dau tai embedding/reranker model co the cham do download model.

@@ -11,6 +11,8 @@ def configure_logging() -> None:
     """Configure a consistent console log format for all project modules."""
     settings = get_settings()
     level = getattr(logging, settings.log_level.upper(), logging.INFO)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     logging.basicConfig(
         level=level,
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",

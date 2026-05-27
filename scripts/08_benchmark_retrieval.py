@@ -6,13 +6,13 @@ from app.core.logging import configure_logging
 from app.retrieval.retriever import LegalRetriever
 
 BENCHMARK_QUERIES = [
-    "muc thu le phi truoc ba duoc quy dinh nhu the nao?",
-    "doi tuong chiu le phi truoc ba gom nhung gi?",
-    "nguyen tac xac dinh muc thu phi va le phi la gi?",
-    "to chuc thu phi, le phi co trach nhiem gi?",
-    "nguyen tac xac dinh muc thu le phi truoc ba la gi?",
-    "trach nhiem cua to chuc thu le phi truoc ba la gi?",
-    "quy dinh ve xay dung nha o la gi?",
+    "mức thu lệ phí trước bạ được quy định thế nào?",
+    "đối tượng chịu lệ phí trước bạ gồm những gì?",
+    "nguyên tắc xác định mức thu phí và lệ phí là gì?",
+    "tổ chức thu phí, lệ phí có trách nhiệm gì?",
+    "nguyên tắc xác định mức thu lệ phí trước bạ là gì?",
+    "trách nhiệm của tổ chức thu lệ phí trước bạ là gì?",
+    "quy định về xây dựng nhà ở là gì?",
 ]
 
 

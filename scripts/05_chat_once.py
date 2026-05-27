@@ -2,9 +2,10 @@
 
 import argparse
 import json
+import sys
 
 from app.core.logging import configure_logging
-from app.services.chat_service import ChatService
+from app.services.chat_service import get_chat_service
 
 
 # Goi LangGraph agent mot lan tu CLI.
@@ -17,7 +18,9 @@ def main() -> None:
     args = parser.parse_args()
 
     configure_logging()
-    result = ChatService().chat(session_id=args.session_id, question=args.question, debug=args.debug)
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    result = get_chat_service().chat(session_id=args.session_id, question=args.question, debug=args.debug)
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

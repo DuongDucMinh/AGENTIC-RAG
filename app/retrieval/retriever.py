@@ -1,6 +1,8 @@
 """High-level retrieval pipeline: hybrid search, rerank, parent context load."""
 
 import logging
+import time
+from functools import lru_cache
 from typing import Any
 
 from langchain_core.documents import Document
@@ -13,7 +15,21 @@ from app.retrieval.bm25_store import BM25Store
 from app.retrieval.rrf import reciprocal_rank_fusion
 
 logger = logging.getLogger(__name__)
-KEYWORD_HEAVY_TERMS = ("muc thu", "mức thu", "ty le", "tỷ lệ", "%", "le phi truoc ba", "lệ phí trước bạ")
+KEYWORD_HEAVY_TERMS = (
+    "muc thu",
+    "mức thu",
+    "ty le",
+    "tỷ lệ",
+    "%",
+    "le phi truoc ba",
+    "lệ phí trước bạ",
+    "chứng từ",
+    "chung tu",
+    "hạch toán",
+    "hach toan",
+    "công khai",
+    "cong khai",
+)
 NEGATIVE_LEGAL_TERMS = ("xử lý vi phạm", "khiếu nại", "thủ tục", "nộp đủ")
 PARENT_NEGATIVE_TERMS = ("xử lý vi phạm", "khiếu nại", "thủ tục")
 DOMAIN_TERMS = ("thuế", "thue", "phí", "phi", "lệ phí", "le phi", "trước bạ", "truoc ba")
@@ -22,6 +38,8 @@ INTENT_MUC_THU_TERMS = ("mức thu", "muc thu", "tỷ lệ", "ty le", "%")
 INTENT_DOI_TUONG_TERMS = ("đối tượng", "doi tuong", "chịu", "chiu", "gồm", "gom")
 INTENT_TRACH_NHIEM_TERMS = ("trách nhiệm", "trach nhiem", "tổ chức thu", "to chuc thu")
 INTENT_NGUYEN_TAC_TERMS = ("nguyên tắc", "nguyen tac", "xác định", "xac dinh")
+RESPONSIBILITY_DETAIL_TERMS = ("chứng từ", "chung tu", "hạch toán", "hach toan", "công khai", "cong khai", "quyết toán", "quyet toan")
+VIOLATION_TERMS = ("xử phạt", "xu phat", "vi phạm", "vi pham", "xử lý vi phạm", "xu ly vi pham")
 
 
 # Chuyen metadata cua parent chunk thanh citation public.
@@ -156,6 +174,18 @@ def _heuristic_keyword_score(query: str, doc: Document) -> float:
             score -= 4.0
     if lowered_prefix.startswith("điều") or lowered_prefix.startswith("dieu"):
         score += 2.0
+    if any(term in lowered_query for term in RESPONSIBILITY_DETAIL_TERMS):
+        if any(term in lowered_prefix or term in lowered_title for term in RESPONSIBILITY_DETAIL_TERMS):
+            score += 14.0
+        if "trách nhiệm" in lowered_title or "trach nhiem" in lowered_title:
+            score += 10.0
+        if "tổ chức thu" in lowered_prefix or "to chuc thu" in lowered_prefix:
+            score += 6.0
+    if not any(term in lowered_query for term in VIOLATION_TERMS):
+        if any(term in lowered_title for term in VIOLATION_TERMS):
+            score -= 10.0
+        if any(term in lowered_prefix[:250] for term in VIOLATION_TERMS):
+            score -= 6.0
     if "xử lý vi phạm" in lowered_title or "xu ly vi pham" in lowered_title:
         score -= 10.0
     if "khiếu nại" in lowered_title or "khieu nai" in lowered_title:
@@ -267,12 +297,8 @@ def _select_diverse_parents(
 # Sap lai parent contexts de uu tien cac dieu khoan dung y dinh cau hoi.
 def _rank_parent_contexts(query: str, parent_candidates: list[tuple[Document, float]], limit: int) -> tuple[list[Document], list[float]]:
     """Rank parent contexts for final answer generation and citation output."""
-    ranked = sorted(
-        ((doc, _parent_intent_score(query, doc, source_score)) for doc, source_score in parent_candidates),
-        key=lambda item: item[1],
-        reverse=True,
-    )
-    return _select_diverse_parents(ranked, limit=limit, max_per_doc=1)
+    ranked = sorted(parent_candidates, key=lambda item: item[1], reverse=True)
+    return _select_diverse_parents(ranked, limit=limit, max_per_doc=2)
 
 
 class LegalRetriever:
@@ -287,9 +313,12 @@ class LegalRetriever:
     # Chay dense search, BM25, RRF, rerank va load parent contexts.
     def search(self, query: str, top_k: int = 5, hybrid_k: int | None = None, rerank_k: int | None = None) -> dict[str, Any]:
         """Search child chunks, rerank them, and load unique parent contexts."""
+        search_start = time.perf_counter()
         settings = get_settings()
         if not _is_domain_query(query):
+            elapsed_ms = (time.perf_counter() - search_start) * 1000
             logger.info("Retrieval skipped out_of_domain query=%s", query[:120])
+            logger.info("Retrieval finished out_of_domain=true latency_ms=%.2f", elapsed_ms)
             return {
                 "contexts": [],
                 "citations": [],
@@ -321,11 +350,23 @@ class LegalRetriever:
             corpus_child_count,
         )
         vector_store = get_vector_store()
+        dense_start = time.perf_counter()
         dense_docs = _unique_by_chunk(vector_store.similarity_search(query, k=dense_k))
+        dense_elapsed_ms = (time.perf_counter() - dense_start) * 1000
+        bm25_start = time.perf_counter()
         bm25_docs = _unique_by_chunk(self.bm25_store.search(query, top_k=bm25_k))
+        bm25_elapsed_ms = (time.perf_counter() - bm25_start) * 1000
         _log_candidate_list("dense", dense_docs)
         _log_candidate_list("bm25", bm25_docs)
+        logger.info(
+            "Retrieval stage latency dense_ms=%.2f bm25_ms=%.2f dense_docs=%s bm25_docs=%s",
+            dense_elapsed_ms,
+            bm25_elapsed_ms,
+            len(dense_docs),
+            len(bm25_docs),
+        )
 
+        fusion_start = time.perf_counter()
         child_docs = reciprocal_rank_fusion(
             [dense_docs, bm25_docs],
             limit=fusion_k,
@@ -335,8 +376,10 @@ class LegalRetriever:
         if not child_docs:
             child_docs = dense_docs
         child_docs = _unique_by_chunk(child_docs)
+        fusion_elapsed_ms = (time.perf_counter() - fusion_start) * 1000
         logger.info("Dense/BM25/RRF returned dense=%s bm25=%s fused=%s bm25_weight=%s", len(dense_docs), len(bm25_docs), len(child_docs), bm25_weight)
         _log_candidate_list("rrf", child_docs)
+        logger.info("Retrieval stage latency fusion_ms=%.2f fused_docs=%s", fusion_elapsed_ms, len(child_docs))
 
         skip_rerank = (
             not settings.enable_reranking
@@ -358,8 +401,12 @@ class LegalRetriever:
             _log_candidate_list("heuristic", reranked_docs)
         else:
             reranked_docs, scores = rerank(query, child_docs, top_k=final_rerank_k)
+            if keyword_heavy and not scores:
+                reranked_docs, scores = _heuristic_rank(query, child_docs, limit=final_rerank_k)
+                logger.info("Heuristic rerank applied after GPU rerank skip candidates=%s output=%s", len(child_docs), len(reranked_docs))
             _log_candidate_list("rerank", reranked_docs)
 
+        parent_start = time.perf_counter()
         parent_candidates: list[tuple[Document, float]] = []
         seen_parent_ids: set[str] = set()
         for index, child in enumerate(reranked_docs):
@@ -375,6 +422,7 @@ class LegalRetriever:
                 break
 
         parent_docs, parent_scores = _rank_parent_contexts(query, parent_candidates, limit=top_k)
+        parent_elapsed_ms = (time.perf_counter() - parent_start) * 1000
         citations = [_citation_from_metadata(doc.metadata) for doc in parent_docs]
         contexts = [doc.page_content for doc in parent_docs]
         trace = {
@@ -396,5 +444,23 @@ class LegalRetriever:
             "rerank_top_candidates": _trace_candidate_list(reranked_docs),
             "parent_top_candidates": _trace_candidate_list(parent_docs),
         }
-        logger.info("Retrieval finished parents=%s citations=%s", len(parent_docs), len(citations))
+        total_elapsed_ms = (time.perf_counter() - search_start) * 1000
+        logger.info(
+            "Retrieval stage latency parent_ms=%.2f parent_candidates=%s parent_docs=%s",
+            parent_elapsed_ms,
+            len(parent_candidates),
+            len(parent_docs),
+        )
+        logger.info(
+            "Retrieval finished parents=%s citations=%s latency_ms=%.2f",
+            len(parent_docs),
+            len(citations),
+            total_elapsed_ms,
+        )
         return {"contexts": contexts, "citations": citations, "trace": trace}
+
+
+@lru_cache
+def get_legal_retriever() -> LegalRetriever:
+    """Return a cached retriever so BM25 and parent stores are reused per process."""
+    return LegalRetriever()

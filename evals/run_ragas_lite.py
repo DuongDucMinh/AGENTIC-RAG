@@ -1,4 +1,4 @@
-"""Run RAGAS-lite custom evaluation against local retrieval and chat APIs."""
+"""Run custom keyword smoke evaluation against local retrieval and chat APIs."""
 
 import argparse
 import json
@@ -12,10 +12,10 @@ from evals.ragas_lite import score_case
 
 # Parse tham so CLI cho evaluation lite.
 def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments for RAGAS-lite evaluation."""
+    """Parse command-line arguments for custom keyword smoke evaluation."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
-    parser.add_argument("--dataset", type=Path, default=Path("evals/eval_dataset.jsonl"))
+    parser.add_argument("--dataset", type=Path, default=Path("evals/chat_eval_cases.jsonl"))
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--output-dir", type=Path, default=Path("eval_reports"))
     return parser.parse_args()
@@ -30,10 +30,10 @@ def load_cases(path: Path, limit: int = 0) -> list[dict]:
 
 # Ghi summary markdown ngan gon de xem nhanh ket qua.
 def write_summary(path: Path, results: list[dict]) -> None:
-    """Write a Markdown summary of RAGAS-lite scores."""
+    """Write a Markdown summary of custom keyword smoke scores."""
     total = len(results)
     keys = ["retrieval_hit", "citation_present", "answer_relevance_lite", "refusal_quality"]
-    lines = ["# RAGAS-lite Summary", ""]
+    lines = ["# Custom Keyword Smoke Eval Summary", "", "This is not a full RAGAS replacement; use `python -m evals.run_eval` as the main chat gate.", ""]
     for key in keys:
         passed = sum(1 for row in results if row["scores"].get(key))
         lines.append(f"- {key}: {passed}/{total}")
@@ -53,8 +53,17 @@ def main() -> None:
     with httpx.Client(timeout=180) as client:
         for index, case in enumerate(cases, start=1):
             start = time.perf_counter()
-            retrieval = client.post(f"{args.base_url}/retrieval/search", json={"query": case["question"], "top_k": 5, "debug": True}).json()
-            chat = client.post(f"{args.base_url}/chat", json={"session_id": f"ragas-lite-{index}", "question": case["question"], "debug": True}).json()
+            try:
+                retrieval_response = client.post(f"{args.base_url}/retrieval/search", json={"query": case["question"], "top_k": 5, "debug": True})
+                chat_response = client.post(f"{args.base_url}/chat", json={"session_id": f"keyword-smoke-{index}", "question": case["question"], "debug": True})
+                retrieval_response.raise_for_status()
+                chat_response.raise_for_status()
+                retrieval = retrieval_response.json()
+                chat = chat_response.json()
+            except httpx.HTTPError as exc:
+                latency_ms = (time.perf_counter() - start) * 1000
+                results.append({"case": case, "scores": {}, "latency_ms": latency_ms, "error": f"{type(exc).__name__}: {exc}"})
+                continue
             latency_ms = (time.perf_counter() - start) * 1000
             scores = score_case(case, retrieval.get("contexts", []), chat.get("answer", ""), chat.get("citations", []))
             results.append({"case": case, "scores": scores, "latency_ms": latency_ms, "retrieval_trace": retrieval.get("trace", {})})

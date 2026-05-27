@@ -1,6 +1,7 @@
 """Service wrapper around the LangGraph chat agent."""
 
 import logging
+from functools import lru_cache
 
 from app.agent.graph import build_agent_graph
 from app.core.tracing import tracing_context
@@ -26,4 +27,15 @@ class ChatService:
                 config={"tags": ["chat", "legal-tax-rag"], "metadata": {"session_id": session_id}},
             )
         trace = result.get("retrieval_trace") if debug else None
-        return {"answer": result.get("answer", ""), "citations": result.get("citations", []), "retrieval_trace": trace}
+        return {
+            "answer": result.get("answer", ""),
+            "citations": result.get("citations", []),
+            "out_of_domain": bool(result.get("out_of_domain")),
+            "retrieval_trace": trace,
+        }
+
+
+@lru_cache
+def get_chat_service() -> ChatService:
+    """Return a cached chat service so the graph is compiled once per process."""
+    return ChatService()

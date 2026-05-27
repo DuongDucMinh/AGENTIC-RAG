@@ -6,10 +6,24 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 class Settings(BaseSettings):
     """Runtime configuration shared across API, ingestion, retrieval, and agent code."""
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", env_file_encoding="utf-8", extra="ignore")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        # Prioritize project .env over ambient OS environment variables.
+        return init_settings, dotenv_settings, env_settings, file_secret_settings
 
     app_name: str = "Vietnamese Tax Legal RAG"
     app_env: str = "local"
@@ -17,6 +31,9 @@ class Settings(BaseSettings):
 
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
+    groq_rewrite_model: str = "llama-3.1-8b-instant"
+    groq_judge_model: str = ""
+    groq_answer_model: str = "llama-3.1-8b-instant"
     llm_temperature: float = 0.0
 
     qdrant_url: str = "http://localhost:6333"
@@ -26,7 +43,7 @@ class Settings(BaseSettings):
     hf_dataset_name: str = "th1nhng0/vietnamese-legal-documents"
     max_documents_to_index: int = 3000
 
-    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    embedding_model: str = "intfloat/multilingual-e5-small"
     sparse_model: str = "Qdrant/bm25"
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
     enable_reranking: bool = True
@@ -49,6 +66,7 @@ class Settings(BaseSettings):
     langsmith_tracing: bool = False
     langsmith_api_key: str = ""
     langsmith_project: str = "vietnamese-tax-legal-rag"
+    langsmith_endpoint: str = ""
 
 
 @lru_cache

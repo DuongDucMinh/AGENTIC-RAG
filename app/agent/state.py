@@ -14,4 +14,10 @@ class AgentState(TypedDict, total=False):
     contexts: list[str]
     citations: list[dict[str, Any]]
     retrieval_trace: dict[str, Any]
+    out_of_domain: bool
+    out_of_domain_reason: str
+    answerable: bool
+    insufficient_context: bool
+    judge_reason: str
+    response_mode: str
     answer: str
