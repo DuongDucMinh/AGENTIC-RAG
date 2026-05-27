@@ -1,0 +1,5 @@
+{"question":"Lệ phí trước bạ được quy định như thế nào?","expected_keywords":["lệ phí trước bạ"],"type":"in_domain"}
+{"question":"Ai là đối tượng nộp phí, lệ phí?","expected_keywords":["phí","lệ phí"],"type":"in_domain"}
+{"question":"Văn bản nào quy định chính sách thuế hiện hành?","expected_keywords":["thuế"],"type":"in_domain"}
+{"question":"mức phí đó là bao nhiêu?","expected_keywords":[],"type":"clarification"}
+{"question":"Quy định về xây dựng nhà ở là gì?","expected_keywords":[],"type":"out_of_domain"}
