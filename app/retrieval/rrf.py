@@ -9,9 +9,21 @@ def document_key(doc: Document) -> str:
     return str(doc.metadata.get("chunk_id") or doc.metadata.get("parent_id") or doc.page_content[:120])
 
 
+# Lap lai ranking theo weight de uu tien mot nguon retrieval trong RRF.
+def _expand_rankings_by_weight(rankings: list[list[Document]], weights: list[int] | None) -> list[list[Document]]:
+    """Repeat ranking lists according to integer weights before RRF scoring."""
+    if not weights:
+        return rankings
+    expanded: list[list[Document]] = []
+    for ranking, weight in zip(rankings, weights):
+        expanded.extend([ranking] * max(1, weight))
+    return expanded
+
+
 # Hop nhat nhieu bang xep hang bang RRF de can bang semantic va keyword search.
-def reciprocal_rank_fusion(rankings: list[list[Document]], limit: int = 30, k: int = 60) -> list[Document]:
+def reciprocal_rank_fusion(rankings: list[list[Document]], limit: int = 30, k: int = 60, weights: list[int] | None = None) -> list[Document]:
     """Fuse ranked document lists with RRF and return top unique documents."""
+    rankings = _expand_rankings_by_weight(rankings, weights)
     scores: dict[str, float] = {}
     docs: dict[str, Document] = {}
     for ranking in rankings:

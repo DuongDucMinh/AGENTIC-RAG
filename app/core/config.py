@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     sparse_model: str = "Qdrant/bm25"
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L6-v2"
     enable_reranking: bool = True
+    retrieval_dense_top_k: int = 20
+    retrieval_bm25_top_k: int = 20
+    retrieval_fusion_top_k: int = 12
+    retrieval_rerank_top_k: int = 5
+    retrieval_rrf_k: int = 60
+    retrieval_bm25_weight: int = 2
+    retrieval_skip_rerank_below_docs: int = 2000
 
     child_chunk_size: int = 700
     child_chunk_overlap: int = 100

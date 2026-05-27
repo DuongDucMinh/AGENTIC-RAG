@@ -11,13 +11,13 @@ For detailed module-by-module commands, Colab artifact preparation, BM25/RRF not
 Do not preprocess the full Hugging Face dataset on a weak local machine. Keep the preprocessing code in this repo, but run the heavy job on Colab:
 
 ```bash
-python scripts/prepare_artifact.py --max-documents 50 --output-dir artifacts/legal_tax_v1_50
+python scripts/prepare_artifact.py --max-documents 200 --output-dir artifacts/legal_tax_v1_200
 ```
 
 Download the artifact zip, extract it locally, then import it:
 
 ```powershell
-python scripts/06_import_artifact.py --artifact-dir artifacts/legal_tax_v1_50 --reset
+python scripts/06_import_artifact.py --artifact-dir artifacts/legal_tax_v1_200 --reset
 ```
 
 This imports parent chunks, indexes child chunks into Qdrant, and builds the PyVi-tokenized BM25 sidecar used with RRF fusion.

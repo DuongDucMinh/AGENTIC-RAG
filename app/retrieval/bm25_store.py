@@ -55,6 +55,13 @@ class BM25Store:
         logger.info("Loaded BM25 index path=%s documents=%s", self.path, len(self._documents))
         return True
 
+    # Tra ve kich thuoc corpus lexical de quyet dinh co nen rerank hay khong.
+    def document_count(self) -> int:
+        """Return the number of child documents available to BM25."""
+        if self._bm25 is None and not self.load():
+            return 0
+        return len(self._documents)
+
     # Tim kiem lexical bang BM25 da tokenize tieng Viet.
     def search(self, query: str, top_k: int = 50) -> list[Document]:
         """Search BM25 and return top child documents with bm25_score metadata."""

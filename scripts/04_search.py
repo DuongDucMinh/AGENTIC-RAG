@@ -12,7 +12,7 @@ def main() -> None:
     """Search indexed child chunks and print parent contexts/citations."""
     parser = argparse.ArgumentParser()
     parser.add_argument("query")
-    parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument("--top-k", type=int, default=3)
     args = parser.parse_args()
 
     configure_logging()

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 class RetrievalSearchRequest(BaseModel):
     """Input payload for direct retrieval testing."""
     query: str
-    top_k: int = 5
+    top_k: int = 3
     debug: bool = True
 
 

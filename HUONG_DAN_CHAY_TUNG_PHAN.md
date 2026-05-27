@@ -71,14 +71,14 @@ Trong Colab, sua URL repo cua ban roi chay:
 git clone https://github.com/YOUR_USERNAME/AGENTIC-RAG.git
 cd AGENTIC-RAG
 pip install -r requirements.txt
-python scripts/prepare_artifact.py --max-documents 50 --output-dir artifacts/legal_tax_v1_50
-zip -r legal_tax_v1_50.zip artifacts/legal_tax_v1_50
+python scripts/prepare_artifact.py --max-documents 200 --output-dir artifacts/legal_tax_v1_200
+zip -r legal_tax_v1_200.zip artifacts/legal_tax_v1_200
 ```
 
-Tai `legal_tax_v1_50.zip` ve local va giai nen thanh:
+Tai `legal_tax_v1_200.zip` ve local va giai nen thanh:
 
 ```text
-artifacts/legal_tax_v1_50/
+artifacts/legal_tax_v1_200/
 ├── selected_metadata.jsonl
 ├── parents.jsonl
 ├── children.jsonl
@@ -87,9 +87,9 @@ artifacts/legal_tax_v1_50/
 
 Uoc luong:
 
-- 50 docs: 500-2,500 parent chunks, 1,000-6,000 child chunks.
 - 100 docs: 2,000-8,000 parent chunks, 4,000-15,000 child chunks.
 - 200 docs: 4,000-12,000 parent chunks, 8,000-25,000 child chunks.
+- 500 docs: 10,000-30,000 parent chunks, 20,000-60,000 child chunks.
 
 Neu may yeu, bat dau voi `--max-documents 100`.
 
@@ -104,7 +104,7 @@ docker compose up qdrant
 Import:
 
 ```powershell
-python scripts/06_import_artifact.py --artifact-dir artifacts/legal_tax_v1_50 --reset
+python scripts/06_import_artifact.py --artifact-dir artifacts/legal_tax_v1_200 --reset
 ```
 
 Script nay lam:
@@ -144,7 +144,7 @@ sample[1] title=...
 ### Cach nhe: doc artifact da tao
 
 ```powershell
-python scripts/02_parse_sample.py --artifact-dir artifacts/legal_tax_v1_50 --max-documents 3
+python scripts/02_parse_sample.py --artifact-dir artifacts/legal_tax_v1_200 --max-documents 3
 ```
 
 ### Cach nang: stream truc tiep Hugging Face
@@ -155,20 +155,13 @@ Chi dung khi muon debug pipeline goc tren may khoe:
 python scripts/02_parse_sample.py --max-documents 3
 ```
 
-## 8. Index truc tiep tu Hugging Face dataset
-
-Day la cach cu, co the nang. Neu da co artifact thi dung buoc 5 thay vi buoc nay.
-
-```powershell
-python scripts/03_index_small.py --max-documents 20 --reset
-```
 
 ## 9. Test retrieval rieng
 
 Can da import artifact hoac index thanh cong.
 
 ```powershell
-python scripts/04_search.py "muc thu le phi truoc ba duoc quy dinh nhu the nao?"
+python -m scripts.04_search "muc thu le phi truoc ba duoc quy dinh nhu the nao?"
 ```
 
 Retrieval hien tai:
@@ -177,11 +170,30 @@ Retrieval hien tai:
 Qdrant dense search
 -> PyVi BM25 search
 -> RRF fusion
--> cross-encoder rerank
+-> heuristic rerank nhe cho query explicit
+-> cross-encoder rerank (chi bat khi corpus lon hon threshold)
 -> load parent contexts
 ```
 
 BM25 co the dung cho tieng Viet, nhung khong nen whitespace tokenize thuan. Du an dung `pyvi.ViTokenizer` de token hoa tieng Viet, roi hop nhat voi dense ranking bang RRF.
+
+Mac dinh retrieval debug hien tai chi lay `top_k=3` parent contexts de giam nhieu.
+
+### Benchmark nhieu cau hoi
+
+De danh gia retriever tren nhieu intent thay vi 1 query:
+
+```powershell
+python -m scripts.08_benchmark_retrieval
+```
+
+Script nay chay 5 cau hoi dai dien:
+
+- muc thu le phi truoc ba
+- doi tuong chiu le phi truoc ba
+- nguyen tac xac dinh muc thu phi va le phi
+- trach nhiem cua to chuc thu phi, le phi
+- 1 cau ngoai domain de xem retriever co bi lech
 
 ## 10. Test chat agent
 
