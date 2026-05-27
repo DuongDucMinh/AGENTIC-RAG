@@ -71,14 +71,14 @@ Trong Colab, sua URL repo cua ban roi chay:
 git clone https://github.com/YOUR_USERNAME/AGENTIC-RAG.git
 cd AGENTIC-RAG
 pip install -r requirements.txt
-python scripts/prepare_artifact.py --max-documents 200 --output-dir artifacts/legal_tax_v1_200
-zip -r legal_tax_v1_200.zip artifacts/legal_tax_v1_200
+python scripts/prepare_artifact.py --max-documents 100 --output-dir artifacts/legal_tax_v1_100
+zip -r legal_tax_v1_100.zip artifacts/legal_tax_v1_100
 ```
 
-Tai `legal_tax_v1_200.zip` ve local va giai nen thanh:
+Tai `legal_tax_v1_100.zip` ve local va giai nen thanh:
 
 ```text
-artifacts/legal_tax_v1_200/
+artifacts/legal_tax_v1_100/
 ├── selected_metadata.jsonl
 ├── parents.jsonl
 ├── children.jsonl
@@ -104,7 +104,7 @@ docker compose up qdrant
 Import:
 
 ```powershell
-python scripts/06_import_artifact.py --artifact-dir artifacts/legal_tax_v1_200 --reset
+python scripts/06_import_artifact.py --artifact-dir artifacts/legal_tax_v1_100 --reset
 ```
 
 Script nay lam:
@@ -144,7 +144,7 @@ sample[1] title=...
 ### Cach nhe: doc artifact da tao
 
 ```powershell
-python scripts/02_parse_sample.py --artifact-dir artifacts/legal_tax_v1_200 --max-documents 3
+python scripts/02_parse_sample.py --artifact-dir artifacts/legal_tax_v1_100 --max-documents 3
 ```
 
 ### Cach nang: stream truc tiep Hugging Face
@@ -355,3 +355,4 @@ sequenceDiagram
 - `BM25 index not found`: chua chay `scripts/06_import_artifact.py`.
 - Reranker/embedding download cham: lan dau model se duoc tai ve, can internet.
 - May lag khi stream dataset: dung Colab artifact workflow thay vi chay Hugging Face content local.
+

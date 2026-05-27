@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments for artifact preparation."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max-documents", type=int, default=200)
-    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/legal_tax_v1_200"))
+    parser.add_argument("--max-documents", type=int, default=100)
+    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/legal_tax_v1_100"))
     return parser.parse_args()
 
 

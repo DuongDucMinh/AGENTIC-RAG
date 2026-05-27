@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     sparse_model: str = "Qdrant/bm25"
-    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L6-v2"
+    reranker_model: str = "BAAI/bge-reranker-v2-m3"
     enable_reranking: bool = True
     retrieval_dense_top_k: int = 20
     retrieval_bm25_top_k: int = 20
