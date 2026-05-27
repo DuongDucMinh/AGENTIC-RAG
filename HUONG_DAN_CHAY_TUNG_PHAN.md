@@ -71,14 +71,14 @@ Trong Colab, sua URL repo cua ban roi chay:
 git clone https://github.com/YOUR_USERNAME/AGENTIC-RAG.git
 cd AGENTIC-RAG
 pip install -r requirements.txt
-python scripts/prepare_artifact.py --max-documents 200 --output-dir artifacts/legal_tax_v1_200
-zip -r legal_tax_v1_200.zip artifacts/legal_tax_v1_200
+python scripts/prepare_artifact.py --max-documents 50 --output-dir artifacts/legal_tax_v1_50
+zip -r legal_tax_v1_50.zip artifacts/legal_tax_v1_50
 ```
 
-Tai `legal_tax_v1_200.zip` ve local va giai nen thanh:
+Tai `legal_tax_v1_50.zip` ve local va giai nen thanh:
 
 ```text
-artifacts/legal_tax_v1_200/
+artifacts/legal_tax_v1_50/
 ├── selected_metadata.jsonl
 ├── parents.jsonl
 ├── children.jsonl
@@ -87,9 +87,9 @@ artifacts/legal_tax_v1_200/
 
 Uoc luong:
 
+- 50 docs: 500-2,500 parent chunks, 1,000-6,000 child chunks.
 - 100 docs: 2,000-8,000 parent chunks, 4,000-15,000 child chunks.
 - 200 docs: 4,000-12,000 parent chunks, 8,000-25,000 child chunks.
-- 500 docs: 10,000-30,000 parent chunks, 20,000-60,000 child chunks.
 
 Neu may yeu, bat dau voi `--max-documents 100`.
 
@@ -104,7 +104,7 @@ docker compose up qdrant
 Import:
 
 ```powershell
-python scripts/06_import_artifact.py --artifact-dir artifacts/legal_tax_v1_200 --reset
+python scripts/06_import_artifact.py --artifact-dir artifacts/legal_tax_v1_50 --reset
 ```
 
 Script nay lam:
@@ -144,7 +144,7 @@ sample[1] title=...
 ### Cach nhe: doc artifact da tao
 
 ```powershell
-python scripts/02_parse_sample.py --artifact-dir artifacts/legal_tax_v1_200 --max-documents 3
+python scripts/02_parse_sample.py --artifact-dir artifacts/legal_tax_v1_50 --max-documents 3
 ```
 
 ### Cach nang: stream truc tiep Hugging Face

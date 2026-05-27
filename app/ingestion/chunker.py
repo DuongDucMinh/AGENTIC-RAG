@@ -14,6 +14,7 @@ from app.ingestion.legal_parser import LegalSection
 logger = logging.getLogger(__name__)
 
 CLAUSE_OR_POINT_RE = re.compile(r"(?m)^(?=(?:\d+\.|[a-zđ]\)))")
+CODE_LINE_RE = re.compile(r"(?m)^\d{4}(?:\.\d{2}){0,3}\b")
 
 
 # Tao chunk_id on dinh cho child chunk.
@@ -47,6 +48,49 @@ def _base_metadata(section: LegalSection) -> dict[str, Any]:
     }
 
 
+# Danh dau chunk qua ngan hoac qua giong ma/bang de bo qua.
+def _is_low_value_chunk(text: str, min_chars: int) -> bool:
+    """Return True when a chunk is too short or mostly code-like."""
+    stripped = text.strip()
+    if len(stripped) < max(40, min_chars // 3):
+        return True
+    lines = [line.strip() for line in stripped.splitlines() if line.strip()]
+    if len(stripped) < min_chars and lines and CODE_LINE_RE.match(lines[0]):
+        return True
+    alpha_chars = sum(character.isalpha() for character in stripped)
+    if len(stripped) < min_chars and alpha_chars < max(20, len(stripped) // 4):
+        return True
+    return False
+
+
+# Gop cac doan qua ngan de tranh heading-only chunk va chunk vo nghia.
+def _merge_small_parts(parts: list[str], min_chars: int) -> list[str]:
+    """Merge adjacent short parts into larger retrieval-friendly units."""
+    merged: list[str] = []
+    buffer = ""
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        if not buffer:
+            buffer = part
+            continue
+        if len(buffer) < min_chars or len(part) < min_chars:
+            buffer = f"{buffer}\n\n{part}"
+            if len(buffer) >= min_chars:
+                merged.append(buffer)
+                buffer = ""
+        else:
+            merged.append(buffer)
+            buffer = part
+    if buffer:
+        if merged and len(buffer) < min_chars:
+            merged[-1] = f"{merged[-1]}\n\n{buffer}"
+        else:
+            merged.append(buffer)
+    return merged
+
+
 # Chuyen LegalSection thanh parent Document.
 def make_parent_document(section: LegalSection) -> Document:
     """Convert a legal section into a LangChain parent document."""
@@ -64,6 +108,7 @@ def chunk_section(section: LegalSection) -> list[Document]:
         separators=["\n\n", "\n", ". ", " ", ""],
     )
     clause_parts = [p.strip() for p in CLAUSE_OR_POINT_RE.split(section.text) if p.strip()]
+    clause_parts = _merge_small_parts(clause_parts, settings.min_child_chars)
     seed_docs: list[Document] = []
     if len(clause_parts) > 1:
         for part in clause_parts:
@@ -78,10 +123,16 @@ def chunk_section(section: LegalSection) -> list[Document]:
         else:
             chunks.append(seed)
 
-    for index, chunk in enumerate(chunks):
+    filtered_chunks: list[Document] = []
+    for chunk in chunks:
+        if _is_low_value_chunk(chunk.page_content, settings.min_child_chars):
+            continue
+        filtered_chunks.append(chunk)
+
+    for index, chunk in enumerate(filtered_chunks):
         chunk.metadata["chunk_index"] = index
         chunk.metadata["chunk_id"] = _chunk_id(section.parent_id, index, chunk.page_content)
-    return chunks
+    return filtered_chunks
 
 
 # Tao danh sach parent docs va child docs cho mot van ban da parse.

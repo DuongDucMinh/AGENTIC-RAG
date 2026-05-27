@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     child_chunk_size: int = 700
     child_chunk_overlap: int = 100
     fallback_parent_chars: int = 3500
+    min_child_chars: int = 120
 
     parent_store_dir: Path = Field(default=Path("data/parent_store"))
     bm25_store_path: Path = Field(default=Path("data/bm25_index.pkl"))

@@ -15,6 +15,16 @@ TITLE_KEYWORDS = [
     "thu nhập cá nhân",
 ]
 
+EXCLUDED_TITLE_KEYWORDS = [
+    "danh mục hàng hoá",
+    "danh mục hàng hóa",
+    "cept",
+    "mã hàng",
+    "biểu thuế",
+    "biểu mức thuế",
+    "biểu khung",
+]
+
 DOC_TYPE_SCORE = {"Luật": 50, "Nghị định": 40, "Thông tư": 30, "Thông tư liên tịch": 20}
 AUTHORITY_SCORE = {"Quốc hội": 40, "Chính phủ": 35, "Bộ Tài chính": 30, "Ủy ban thường vụ Quốc hội": 25, "Thủ tướng Chính phủ": 20}
 STATUS_SCORE = {"Còn hiệu lực": 20, "Hết hiệu lực một phần": 10}
@@ -32,10 +42,17 @@ def score_metadata(row: dict[str, Any]) -> int:
     return score
 
 
+# Loai bo van ban dang danh muc/bang ma khong hop bai toan QA v1.
+def is_excluded_metadata(row: dict[str, Any]) -> bool:
+    """Return True when a row looks like a low-value catalog or tariff schedule."""
+    title = str(row.get("title") or "").lower()
+    return any(keyword in title for keyword in EXCLUDED_TITLE_KEYWORDS)
+
+
 # Loc domain roi sap xep theo diem de lay top N tai lieu tot nhat.
 def sample_target_metadata(rows: list[dict[str, Any]], max_documents: int) -> list[dict[str, Any]]:
     """Filter target metadata and return the top N scored documents."""
-    selected = [row for row in rows if is_target_metadata(row)]
+    selected = [row for row in rows if is_target_metadata(row) and not is_excluded_metadata(row)]
     selected.sort(key=lambda row: (score_metadata(row), str(row.get("ngay_ban_hanh") or ""), str(row.get("id") or "")), reverse=True)
     return selected[:max_documents]
 
