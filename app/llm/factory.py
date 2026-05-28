@@ -29,6 +29,8 @@ def _resolve_model_name(node_name: str) -> str:
         return settings.groq_judge_model or settings.groq_model
     if node_name == "answer_with_citations":
         return settings.groq_answer_model or settings.groq_model
+    if node_name == "ragas_judge":
+        return settings.groq_ragas_judge_model or settings.groq_model
     return settings.groq_model
 
 
@@ -42,11 +44,14 @@ def _create_chat_model(node_name: str) -> ChatGroq:
         model_name,
         settings.llm_temperature,
     )
-    return ChatGroq(
-        model=model_name,
-        temperature=settings.llm_temperature,
-        api_key=_require_api_key(),
-    )
+    kwargs = {
+        "model": model_name,
+        "temperature": settings.llm_temperature,
+        "api_key": _require_api_key(),
+    }
+    if node_name == "ragas_judge":
+        kwargs["max_tokens"] = settings.groq_ragas_max_tokens
+    return ChatGroq(**kwargs)
 
 
 def get_chat_model() -> ChatGroq:
@@ -67,6 +72,20 @@ def get_judge_model() -> ChatGroq:
 def get_answer_model() -> ChatGroq:
     """Create the Groq model used for final grounded answer generation."""
     return _create_chat_model("answer_with_citations")
+
+
+def get_ragas_judge_model() -> ChatGroq:
+    """Create the Groq model used by the RAGAS evaluation judge."""
+    return _create_chat_model("ragas_judge")
+
+
+def get_ragas_llm_wrapper():
+    """Wrap the configured Groq judge model for RAGAS evaluation."""
+    from ragas.llms import LangchainLLMWrapper
+
+    llm = get_ragas_judge_model()
+    logger.info("Creating RAGAS LLM wrapper model=%s", _resolve_model_name("ragas_judge"))
+    return LangchainLLMWrapper(llm)
 
 
 # Goi LLM va log latency.

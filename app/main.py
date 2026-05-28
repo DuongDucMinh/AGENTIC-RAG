@@ -6,17 +6,14 @@ from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from gradio.routes import mount_gradio_app
 
 from app.api.routes_chat import router as chat_router
 from app.api.routes_health import router as health_router
-from app.api.routes_indexing import router as indexing_router
 from app.api.routes_retrieval import router as retrieval_router
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.logging import configure_logging
 from app.core.tracing import configure_langsmith_environment
-from app.ui.gradio_app import build_gradio_app
 
 configure_logging()
 configure_langsmith_environment()
@@ -68,7 +65,19 @@ async def app_error_handler(_: Request, exc: AppError):
 
 
 app.include_router(health_router)
-app.include_router(indexing_router)
 app.include_router(retrieval_router)
 app.include_router(chat_router)
-app = mount_gradio_app(app, build_gradio_app(), path="/ui")
+
+if settings.enable_indexing_routes:
+    from app.api.routes_indexing import router as indexing_router
+
+    logger.info("Mounting indexing routes")
+    app.include_router(indexing_router)
+
+if settings.enable_gradio_ui:
+    from gradio.routes import mount_gradio_app
+
+    from app.ui.gradio_app import build_gradio_app
+
+    logger.info("Mounting Gradio UI at /ui")
+    app = mount_gradio_app(app, build_gradio_app(), path="/ui")

@@ -19,7 +19,7 @@ def health_check():
     settings = get_settings()
     qdrant = {"status": "unknown", "url": settings.qdrant_url}
     try:
-        client = QdrantClient(url=settings.qdrant_url)
+        client = QdrantClient(url=settings.qdrant_url, timeout=settings.qdrant_timeout_s)
         client.get_collections()
         qdrant["status"] = "ok"
     except Exception as exc:

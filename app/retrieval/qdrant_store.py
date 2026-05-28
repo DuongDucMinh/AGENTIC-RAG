@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def get_qdrant_client() -> QdrantClient:
     """Create a Qdrant client from the configured URL."""
     settings = get_settings()
-    return QdrantClient(url=settings.qdrant_url)
+    return QdrantClient(url=settings.qdrant_url, timeout=settings.qdrant_timeout_s)
 
 
 # Tao collection dense hoac dense+sparse tuy config.

@@ -1,6 +1,8 @@
 """Cross-encoder reranking for hybrid search candidates."""
 
 import logging
+import shutil
+import subprocess
 import time
 from functools import lru_cache
 
@@ -15,12 +17,25 @@ _RERANKER_AVAILABLE = True
 @lru_cache
 def _cuda_available() -> bool:
     """Return True when a CUDA GPU is available for reranking."""
+    if shutil.which("nvidia-smi") is None:
+        logger.info("CUDA reranker disabled because nvidia-smi is not available")
+        return False
     try:
-        import torch
+        completed = subprocess.run(
+            ["nvidia-smi", "-L"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        if completed.returncode != 0 or "GPU" not in completed.stdout:
+            logger.info("CUDA reranker disabled because nvidia-smi returned no GPU")
+            return False
 
+        import torch
         return bool(torch.cuda.is_available())
     except Exception:
-        logger.exception("Failed to check CUDA availability for reranker")
+        logger.warning("Failed to check CUDA availability for reranker", exc_info=True)
         return False
 
 

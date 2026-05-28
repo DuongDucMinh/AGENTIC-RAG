@@ -28,9 +28,13 @@ NARROW_SCOPE_TERMS = {
     "mức thu": "muc_thu",
     "tỷ lệ": "muc_thu",
     "căn cứ tính": "can_cu_tinh",
+    "giá tính": "can_cu_tinh",
+    "trị giá": "can_cu_tinh",
     "đối tượng": "doi_tuong",
     "trách nhiệm": "trach_nhiem",
     "nguyên tắc": "nguyen_tac",
+    "thẩm quyền": "tham_quyen",
+    "quyết định": "tham_quyen",
     "thủ tục": "thu_tuc",
     "miễn": "mien_giam",
     "giảm": "mien_giam",
@@ -96,12 +100,37 @@ def _infer_query_intent(question: str) -> str:
     lowered = question.lower()
     if "trách nhiệm" in lowered or "trach nhiem" in lowered:
         return "trach_nhiem"
-    if "đối tượng" in lowered or "doi tuong" in lowered:
-        return "doi_tuong"
+    if (
+        "căn cứ" in lowered
+        or "can cu" in lowered
+        or "giá tính" in lowered
+        or "gia tinh" in lowered
+        or "giá trị đất" in lowered
+        or "gia tri dat" in lowered
+        or "trị giá" in lowered
+        or "tri gia" in lowered
+    ):
+        return "can_cu_tinh"
     if "nguyên tắc" in lowered or "nguyen tac" in lowered:
         return "nguyen_tac"
-    if "mức thu" in lowered or "muc thu" in lowered or "tỷ lệ" in lowered or "ty le" in lowered or "%" in lowered:
+    if (
+        "mức thu" in lowered
+        or "muc thu" in lowered
+        or "tỷ lệ" in lowered
+        or "ty le" in lowered
+        or "mức nào" in lowered
+        or "muc nao" in lowered
+        or "%" in lowered
+        or (
+            ("bao nhiêu" in lowered or "bao nhieu" in lowered or "theo mức" in lowered or "theo muc" in lowered)
+            and ("lệ phí" in lowered or "le phi" in lowered or "trước bạ" in lowered or "truoc ba")
+        )
+    ):
         return "muc_thu"
+    if "đối tượng" in lowered or "doi tuong" in lowered:
+        return "doi_tuong"
+    if "thẩm quyền" in lowered or "tham quyen" in lowered or "quyết định" in lowered or "quyet dinh" in lowered or lowered.startswith("ai "):
+        return "tham_quyen"
     return "generic"
 
 
@@ -177,6 +206,10 @@ def _has_direct_intent_support(state: AgentState) -> tuple[bool, str]:
         return True, "direct_intent_match_nguyen_tac"
     if question_intent == "muc_thu" and "muc_thu" in labels:
         return True, "direct_intent_match_muc_thu"
+    if question_intent == "can_cu_tinh" and "can_cu_tinh" in labels:
+        return True, "direct_intent_match_can_cu_tinh"
+    if question_intent == "tham_quyen" and "tham_quyen" in labels:
+        return True, "direct_intent_match_tham_quyen"
     return False, ""
 
 
@@ -198,6 +231,14 @@ def _deterministic_judgment(state: AgentState) -> dict[str, Any] | None:
             "needs_clarification": False,
             "clarification_question": "",
             "judge_reason": reason,
+        }
+    if _infer_query_intent(state.get("question", "")) == "tham_quyen" and not _is_broad_question(state.get("question", "")):
+        return {
+            "answerable": True,
+            "insufficient_context": False,
+            "needs_clarification": False,
+            "clarification_question": "",
+            "judge_reason": "narrow_authority_question_with_context",
         }
     narrow_slice, narrow_reason = _contexts_cover_single_narrow_slice(
         state.get("question", ""),
@@ -233,6 +274,7 @@ def _select_extractive_fallback_context(state: AgentState) -> str:
         "doi_tuong": "doi_tuong",
         "nguyen_tac": "nguyen_tac",
         "muc_thu": "muc_thu",
+        "can_cu_tinh": "can_cu_tinh",
     }
     preferred = preferred_labels.get(question_intent)
     if preferred:

@@ -14,7 +14,9 @@ data/raw/
 data/markdown/
 
 artifacts/legal_tax_v1_*/
+artifacts/*.log
 eval_reports/
 uvicorn_*.log
+HUONG_DAN_CHAY_TUNG_PHAN.md
 
 .DS_Store

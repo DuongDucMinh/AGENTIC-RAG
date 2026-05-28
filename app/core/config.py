@@ -28,16 +28,21 @@ class Settings(BaseSettings):
     app_name: str = "Vietnamese Tax Legal RAG"
     app_env: str = "local"
     log_level: str = "INFO"
+    enable_gradio_ui: bool = False
+    enable_indexing_routes: bool = False
 
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
     groq_rewrite_model: str = "llama-3.1-8b-instant"
     groq_judge_model: str = ""
     groq_answer_model: str = "llama-3.1-8b-instant"
+    groq_ragas_judge_model: str = "openai/gpt-oss-20b"
+    groq_ragas_max_tokens: int = 4096
     llm_temperature: float = 0.0
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_collection: str = "legal_tax_child_chunks"
+    qdrant_timeout_s: int = 30
     use_qdrant_sparse: bool = False
 
     hf_dataset_name: str = "th1nhng0/vietnamese-legal-documents"
@@ -68,6 +73,11 @@ class Settings(BaseSettings):
     langsmith_project: str = "vietnamese-tax-legal-rag"
     langsmith_endpoint: str = ""
 
+    ragas_run_timeout_s: int = 300
+    ragas_max_cases: int = 20
+    ragas_max_workers: int = 2
+    ragas_output_dir: Path = Field(default=Path("eval_reports"))
+
 
 @lru_cache
 # Lay settings da cache va tao cac thu muc data can thiet.
@@ -76,4 +86,5 @@ def get_settings() -> Settings:
     settings = Settings()
     settings.parent_store_dir.mkdir(parents=True, exist_ok=True)
     settings.bm25_store_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.ragas_output_dir.mkdir(parents=True, exist_ok=True)
     return settings
