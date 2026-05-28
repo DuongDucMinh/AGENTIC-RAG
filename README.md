@@ -4,13 +4,14 @@ Vietnamese Tax Legal Agentic RAG is a source-grounded legal assistant for Vietna
 
 The public benchmark is intentionally scoped to **registration-fee article retrieval**. It should be read as a focused retrieval benchmark, not a claim that the system covers the full Vietnamese legal domain.
 
-## What This Project Demonstrates
+## Highlight Description
 
 - Agentic RAG workflow using LangGraph-style nodes: domain routing, query rewrite, retrieval, context judgment, and grounded answer generation.
 - Hybrid retrieval over Vietnamese legal text using Qdrant dense vectors, local BM25, reciprocal-rank fusion, diversity-aware candidate selection, optional reranking, and parent-context aggregation.
+- Legal-text ingestion pipeline: clean parsing into article-level parents with hierarchical chunking (clause-aware, overlap-aware) for retrieval; dataset source on Hugging Face: https://huggingface.co/datasets/th1nhng0/vietnamese-legal-documents.
 - Strict source-based evaluation that checks whether retrieved citations match the expected legal document and article.
 - Product behavior evaluation for `/chat`, including grounded answers, clarification behavior, out-of-domain handling, expected citations, and forbidden keywords.
-- Optional Gradio UI mounted inside the FastAPI app for local demos.
+- FastAPI service with Docker Compose for local Qdrant and optional Gradio UI mounted inside the app for demos.
 - Reproducible artifact workflow: generated indexes and stores are created locally from the dataset and are not committed to Git.
 
 ## Architecture
