@@ -1,6 +1,7 @@
 """Qdrant collection setup and child chunk indexing helpers."""
 
 import logging
+from functools import lru_cache
 
 from langchain_core.documents import Document
 from langchain_qdrant import QdrantVectorStore
@@ -14,11 +15,24 @@ from app.retrieval.embeddings import get_dense_embeddings, get_sparse_embeddings
 logger = logging.getLogger(__name__)
 
 
+def clear_qdrant_caches() -> None:
+    """Clear cached Qdrant client/vector store instances after config-changing operations."""
+    _get_qdrant_client_cached.cache_clear()
+    _get_dense_vector_store_cached.cache_clear()
+    _get_hybrid_vector_store_cached.cache_clear()
+
+
+@lru_cache
+def _get_qdrant_client_cached(url: str, timeout_s: int) -> QdrantClient:
+    """Create one Qdrant client per process/configuration."""
+    return QdrantClient(url=url, timeout=timeout_s)
+
+
 # Tao Qdrant client tu URL trong config.
 def get_qdrant_client() -> QdrantClient:
     """Create a Qdrant client from the configured URL."""
     settings = get_settings()
-    return QdrantClient(url=settings.qdrant_url, timeout=settings.qdrant_timeout_s)
+    return _get_qdrant_client_cached(settings.qdrant_url, settings.qdrant_timeout_s)
 
 
 # Tao collection dense hoac dense+sparse tuy config.
@@ -29,6 +43,8 @@ def ensure_collection(reset: bool = False) -> None:
     if reset and client.collection_exists(settings.qdrant_collection):
         logger.info("Deleting Qdrant collection name=%s", settings.qdrant_collection)
         client.delete_collection(settings.qdrant_collection)
+        clear_qdrant_caches()
+        client = get_qdrant_client()
 
     if client.collection_exists(settings.qdrant_collection):
         logger.info("Qdrant collection already exists name=%s", settings.qdrant_collection)
@@ -46,26 +62,38 @@ def ensure_collection(reset: bool = False) -> None:
     client.create_collection(**create_kwargs)
 
 
-# Tra ve LangChain QdrantVectorStore de add/search child chunks.
-def get_vector_store() -> QdrantVectorStore:
-    """Return a LangChain Qdrant vector store in hybrid retrieval mode."""
-    settings = get_settings()
-    ensure_collection(reset=False)
-    if not settings.use_qdrant_sparse:
-        return QdrantVectorStore(
-            client=get_qdrant_client(),
-            collection_name=settings.qdrant_collection,
-            embedding=get_dense_embeddings(),
-            retrieval_mode=RetrievalMode.DENSE,
-        )
+@lru_cache
+def _get_dense_vector_store_cached(collection_name: str) -> QdrantVectorStore:
+    """Cache the dense-only vector store wrapper for repeated searches."""
     return QdrantVectorStore(
         client=get_qdrant_client(),
-        collection_name=settings.qdrant_collection,
+        collection_name=collection_name,
+        embedding=get_dense_embeddings(),
+        retrieval_mode=RetrievalMode.DENSE,
+    )
+
+
+@lru_cache
+def _get_hybrid_vector_store_cached(collection_name: str) -> QdrantVectorStore:
+    """Cache the dense+sparse vector store wrapper for repeated searches."""
+    return QdrantVectorStore(
+        client=get_qdrant_client(),
+        collection_name=collection_name,
         embedding=get_dense_embeddings(),
         sparse_embedding=get_sparse_embeddings(),
         retrieval_mode=RetrievalMode.HYBRID,
         sparse_vector_name="sparse",
     )
+
+
+# Tra ve LangChain QdrantVectorStore de add/search child chunks.
+def get_vector_store() -> QdrantVectorStore:
+    """Return a cached LangChain Qdrant vector store in hybrid retrieval mode."""
+    settings = get_settings()
+    ensure_collection(reset=False)
+    if not settings.use_qdrant_sparse:
+        return _get_dense_vector_store_cached(settings.qdrant_collection)
+    return _get_hybrid_vector_store_cached(settings.qdrant_collection)
 
 
 # Them child chunks vao Qdrant theo batch.

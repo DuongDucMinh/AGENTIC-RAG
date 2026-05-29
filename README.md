@@ -8,10 +8,12 @@ The public benchmark is intentionally scoped to **registration-fee article retri
 
 - Agentic RAG workflow using LangGraph-style nodes: domain routing, query rewrite, retrieval, context judgment, and grounded answer generation.
 - Hybrid retrieval over Vietnamese legal text using Qdrant dense vectors, local BM25, reciprocal-rank fusion, diversity-aware candidate selection, optional reranking, and parent-context aggregation.
+- Latency optimization with process-wide caching of `QdrantClient` and `QdrantVectorStore`, removing repeated connection/store-wrapper setup overhead in warm runs.
+- Model stack kept lightweight and practical: `intfloat/multilingual-e5-small` for dense embeddings, `Qdrant/bm25` for lexical retrieval, and Groq-hosted Llama models (`llama-3.3-70b-versatile` for judge/general reasoning, `llama-3.1-8b-instant` for rewrite/answer).
 - Legal-text ingestion pipeline: clean parsing into article-level parents with hierarchical chunking (clause-aware, overlap-aware) for retrieval; dataset source on Hugging Face: https://huggingface.co/datasets/th1nhng0/vietnamese-legal-documents.
 - Strict source-based evaluation that checks whether retrieved citations match the expected legal document and article.
 - Product behavior evaluation for `/chat`, including grounded answers, clarification behavior, out-of-domain handling, expected citations, and forbidden keywords.
-- FastAPI service with Docker Compose for local Qdrant and optional Gradio UI mounted inside the app for demos.
+- FastAPI service with Docker Compose for local Qdrant, LangSmith monitoring for tracing and optional Gradio UI mounted inside the app for demos.
 - Reproducible artifact workflow: generated indexes and stores are created locally from the dataset and are not committed to Git.
 
 ## Architecture
@@ -85,7 +87,10 @@ Main retrieval benchmark: **30 source-labeled registration-fee article retrieval
 | `source_recall@3` | `0.833` |
 | `hit@1` | `0.767` |
 | `hit@3` | `0.833` |
-| Retrieval latency p50 | `~1.10s` |
+| Retrieval latency p50 (latest warm run) | `~85.65 ms` |
+| Retrieval latency avg (latest warm run) | `~131.51 ms` |
+
+Latest latency note: after caching the process-wide `QdrantClient` and `QdrantVectorStore`, the same 30-case retrieval benchmark dropped from roughly `987.60 ms` p50 / `1015.86 ms` avg in an uncached warm run to roughly `85.65 ms` p50 / `131.51 ms` avg in a cached warm run on the current local environment. Retrieval quality metrics above are unchanged by this optimization because caching only removes connection/wrapper setup overhead.
 
 Product behavior gate: `evals.run_eval` checks response mode, out-of-domain routing, clarification behavior, expected citation presence, required answer keywords, and forbidden keywords. The latest local run passed `25/25` cases.
 
@@ -279,5 +284,6 @@ Then call `/health`, `/chat`, and `/retrieval/search`.
 
 - The public benchmark is scoped to registration-fee article retrieval, not the whole Vietnamese legal domain.
 - Retrieval still favors recall; noisy extra citations remain in some categories.
+- Retrieval latency is highly sensitive to cold start versus warm process state; the first request can still be much slower because embedding/model initialization is outside the steady-state cache win.
 - RAGAS latency is evaluation latency, not product `/chat` latency.
 - Cross-encoder reranking is only used when CUDA is available; CPU-only runs use heuristic reranking for lower latency.

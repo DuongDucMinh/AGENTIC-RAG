@@ -1,8 +1,16 @@
 """Unit tests for retrieval diversity and aggregation helpers."""
 
+from types import SimpleNamespace
+from unittest.mock import patch
+
 from langchain_core.documents import Document
 
 from app.retrieval.retriever import _detect_query_intent, _is_domain_query
+from app.retrieval.qdrant_store import (
+    clear_qdrant_caches,
+    get_qdrant_client,
+    get_vector_store,
+)
 from app.retrieval.ranking import (
     aggregate_child_scores,
     deduplicate_near_duplicate_chunks,
@@ -123,3 +131,53 @@ def test_can_cu_tinh_intent_wins_over_generic_gom_terms():
 
 def test_tham_quyen_intent_for_who_decides_rate():
     assert _detect_query_intent("Ai quyết định mức cụ thể đối với ô tô chở người dưới 10 chỗ?") == "tham_quyen"
+
+
+def test_qdrant_client_is_cached_per_process():
+    clear_qdrant_caches()
+    fake_settings = SimpleNamespace(
+        qdrant_url="http://unit-test-qdrant:6333",
+        qdrant_timeout_s=7,
+        qdrant_collection="legal_tax_child_chunks",
+        use_qdrant_sparse=False,
+    )
+
+    with patch("app.retrieval.qdrant_store.get_settings", return_value=fake_settings), patch(
+        "app.retrieval.qdrant_store.QdrantClient",
+        side_effect=lambda **kwargs: {"client_kwargs": kwargs},
+    ) as client_ctor:
+        first = get_qdrant_client()
+        second = get_qdrant_client()
+
+    assert first is second
+    assert client_ctor.call_count == 1
+
+
+def test_vector_store_is_cached_until_reset():
+    clear_qdrant_caches()
+    fake_settings = SimpleNamespace(
+        qdrant_url="http://unit-test-qdrant:6333",
+        qdrant_timeout_s=7,
+        qdrant_collection="legal_tax_child_chunks",
+        use_qdrant_sparse=False,
+    )
+    fake_client = SimpleNamespace(collection_exists=lambda _name: True)
+
+    with patch("app.retrieval.qdrant_store.get_settings", return_value=fake_settings), patch(
+        "app.retrieval.qdrant_store._get_qdrant_client_cached",
+        return_value=fake_client,
+    ), patch(
+        "app.retrieval.qdrant_store.get_dense_embeddings",
+        return_value="dense-embeddings",
+    ), patch(
+        "app.retrieval.qdrant_store.QdrantVectorStore",
+        side_effect=lambda **kwargs: {"vector_store_kwargs": kwargs},
+    ) as store_ctor:
+        first = get_vector_store()
+        second = get_vector_store()
+        clear_qdrant_caches()
+        third = get_vector_store()
+
+    assert first is second
+    assert third is not first
+    assert store_ctor.call_count == 2
